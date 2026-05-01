@@ -286,6 +286,12 @@ describe('TsCompiler', () => {
           moduleValue: 'ESNext',
           expectedModule: ts.ModuleKind.ESNext,
           expectedEsModuleInterop: false,
+          // ESM path with forced module: ESNext — Bundler from ts-jest's tsconfig
+          // is compatible and passes through.
+          expectedModuleResolution: ts.ModuleResolutionKind.Bundler,
+          // moduleResolution Bundler supports customConditions; the user's value
+          // flows through unchanged.
+          expectedCustomConditions: ['my-condition'],
         },
         {
           useESM: true,
@@ -293,6 +299,13 @@ describe('TsCompiler', () => {
           moduleValue: 'ESNext',
           expectedModule: ts.ModuleKind.CommonJS,
           expectedEsModuleInterop: false,
+          // CJS path (useESM but no static ESM support) with forced module: CommonJS.
+          // Bundler is incompatible with CommonJS on TypeScript ≤ 5 (TS5095), so it
+          // is substituted to Node10.
+          expectedModuleResolution: ts.ModuleResolutionKind.Node10,
+          // moduleResolution Node10 does not support customConditions (TS5098),
+          // so the option is cleared.
+          expectedCustomConditions: undefined,
         },
         {
           useESM: false,
@@ -300,10 +313,21 @@ describe('TsCompiler', () => {
           moduleValue: 'ESNext',
           expectedModule: ts.ModuleKind.CommonJS,
           expectedEsModuleInterop: false,
+          // Same CJS-path substitution as above.
+          expectedModuleResolution: ts.ModuleResolutionKind.Node10,
+          expectedCustomConditions: undefined,
         },
       ])(
         'should compile codes with useESM %p',
-        ({ useESM, supportsStaticESM, moduleValue, expectedModule, expectedEsModuleInterop }) => {
+        ({
+          useESM,
+          supportsStaticESM,
+          moduleValue,
+          expectedModule,
+          expectedEsModuleInterop,
+          expectedModuleResolution,
+          expectedCustomConditions,
+        }) => {
           const configSet = createConfigSet({
             tsJestConfig: {
               ...baseTsJestConfig,
@@ -337,8 +361,12 @@ describe('TsCompiler', () => {
 
           expect(usedCompilerOptions.module).toBe(expectedModule)
           expect(usedCompilerOptions.esModuleInterop).toBe(expectedEsModuleInterop)
-          expect(usedCompilerOptions.moduleResolution).toBe(ts.ModuleResolutionKind.Node10)
-          expect(usedCompilerOptions.customConditions).toBeUndefined()
+          // baseTsJestConfig points at ts-jest's own tsconfig.json which sets
+          // moduleResolution to Bundler. After #4198 the compiler preserves that value
+          // when compatible with the forced module, and otherwise substitutes a
+          // compatible value — see fixupCompilerOptionsForModuleKind for the rules.
+          expect(usedCompilerOptions.moduleResolution).toBe(expectedModuleResolution)
+          expect(usedCompilerOptions.customConditions).toEqual(expectedCustomConditions)
           expect(output).toEqual({
             code: updateOutput(jsOutput, fileName, sourceMap),
             diagnostics: [],
@@ -387,8 +415,13 @@ describe('TsCompiler', () => {
 
         expect(usedCompilerOptions.module).toBe(ts.ModuleKind.ESNext)
         expect(usedCompilerOptions.esModuleInterop).toBe(true)
-        expect(usedCompilerOptions.moduleResolution).toBe(ts.ModuleResolutionKind.Node10)
-        expect(usedCompilerOptions.customConditions).toBeUndefined()
+        // moduleResolution Bundler supports customConditions; the user's value
+        // (`['my-condition']` set above) flows through unchanged.
+        expect(usedCompilerOptions.customConditions).toEqual(['my-condition'])
+        // baseTsJestConfig points at ts-jest's own tsconfig.json which sets
+        // moduleResolution to Bundler. After #4198 the compiler preserves that value
+        // instead of forcing it to Node10 — see fixupCompilerOptionsForModuleKind.
+        expect(usedCompilerOptions.moduleResolution).toBe(ts.ModuleResolutionKind.Bundler)
         expect(output).toEqual({
           code: updateOutput(jsOutput, fileName, sourceMap),
           diagnostics: [],
@@ -403,6 +436,495 @@ describe('TsCompiler', () => {
 
         // @ts-expect-error testing purpose
         expect(compiler._fileContentCache.has(emptyFile)).toBe(true)
+      })
+
+      // Closes #4198. Each row is a `moduleResolution` value the user explicitly sets in
+      // their tsconfig. The CJS path forces `module: CommonJS`, which TypeScript binds
+      // tightly to a small set of compatible resolutions:
+      //   - Node10 / Classic: pass through (always valid with CommonJS)
+      //   - Node16 / NodeNext: substitute → Node10 (TS5110 forbids them with CommonJS)
+      //   - Bundler: substitute → Node10 (TS5095 forbids CommonJS+Bundler on TS ≤ 5;
+      //     a TS6+ enhancement can pass Bundler through in a follow-up)
+      test.each([
+        { moduleResolutionValue: 'Bundler', expectedKind: ts.ModuleResolutionKind.Node10 },
+        { moduleResolutionValue: 'Node16', expectedKind: ts.ModuleResolutionKind.Node10 },
+        { moduleResolutionValue: 'NodeNext', expectedKind: ts.ModuleResolutionKind.Node10 },
+        { moduleResolutionValue: 'Classic', expectedKind: ts.ModuleResolutionKind.Classic },
+        { moduleResolutionValue: 'Node10', expectedKind: ts.ModuleResolutionKind.Node10 },
+      ])(
+        'should resolve user-supplied moduleResolution %p compatibly for non-ESM compilation',
+        ({ moduleResolutionValue, expectedKind }) => {
+          const configSet = createConfigSet({
+            tsJestConfig: {
+              ...baseTsJestConfig,
+              tsconfig: {
+                module: 'CommonJS',
+                moduleResolution: moduleResolutionValue as TsConfigJson.CompilerOptions['moduleResolution'],
+              },
+            },
+          })
+          const emptyFile = join(mockFolder, 'empty.ts')
+          configSet.parsedTsConfig.fileNames.push(emptyFile)
+          const compiler = new TsCompiler(configSet, new Map())
+          // @ts-expect-error testing purpose
+          compiler._languageService.getEmitOutput = jest.fn().mockReturnValueOnce({
+            outputFiles: [{ text: sourceMap }, { text: jsOutput }],
+            emitSkipped: false,
+          } as ts.EmitOutput)
+          // @ts-expect-error testing purpose
+          compiler.getDiagnostics = jest.fn().mockReturnValue([])
+
+          compiler.getCompiledOutput(fileContent, fileName, {
+            depGraphs: new Map(),
+            supportsStaticESM: false,
+            watchMode: false,
+          })
+
+          // @ts-expect-error testing purpose
+          const usedCompilerOptions = compiler._compilerOptions
+
+          expect(usedCompilerOptions.moduleResolution).toBe(expectedKind)
+        },
+      )
+
+      // Closes #4198 (ESM path). The ESM path forces `module: ESNext` whenever the user
+      // had a modern Node module kind. ESNext pairs cleanly with Bundler/Node10/Classic
+      // but not with Node16/NodeNext (TS5110), so those two are substituted to Bundler
+      // — non-deprecated, broadly compatible, and the closest semantic match.
+      test.each([
+        { moduleResolutionValue: 'Bundler', expectedKind: ts.ModuleResolutionKind.Bundler },
+        { moduleResolutionValue: 'Node16', expectedKind: ts.ModuleResolutionKind.Bundler },
+        { moduleResolutionValue: 'NodeNext', expectedKind: ts.ModuleResolutionKind.Bundler },
+        { moduleResolutionValue: 'Classic', expectedKind: ts.ModuleResolutionKind.Classic },
+        { moduleResolutionValue: 'Node10', expectedKind: ts.ModuleResolutionKind.Node10 },
+      ])(
+        'should resolve user-supplied moduleResolution %p compatibly for ESM compilation',
+        ({ moduleResolutionValue, expectedKind }) => {
+          const configSet = createConfigSet({
+            tsJestConfig: {
+              ...baseTsJestConfig,
+              useESM: true,
+              tsconfig: {
+                module: 'ESNext',
+                moduleResolution: moduleResolutionValue as TsConfigJson.CompilerOptions['moduleResolution'],
+              },
+            },
+          })
+          const emptyFile = join(mockFolder, 'empty.ts')
+          configSet.parsedTsConfig.fileNames.push(emptyFile)
+          const compiler = new TsCompiler(configSet, new Map())
+          // @ts-expect-error testing purpose
+          compiler._languageService.getEmitOutput = jest.fn().mockReturnValueOnce({
+            outputFiles: [{ text: sourceMap }, { text: jsOutput }],
+            emitSkipped: false,
+          } as ts.EmitOutput)
+          // @ts-expect-error testing purpose
+          compiler.getDiagnostics = jest.fn().mockReturnValue([])
+
+          compiler.getCompiledOutput(fileContent, fileName, {
+            depGraphs: new Map(),
+            supportsStaticESM: true,
+            watchMode: false,
+          })
+
+          // @ts-expect-error testing purpose
+          const usedCompilerOptions = compiler._compilerOptions
+
+          expect(usedCompilerOptions.moduleResolution).toBe(expectedKind)
+        },
+      )
+
+      // Regression coverage for the case where ts-jest is running against a
+      // TypeScript version (4.3 - 4.9) that predates ModuleResolutionKind.Bundler.
+      // The peerDependency range is `>=4.3 <7`, so this matters: on those
+      // versions `ts.ModuleResolutionKind.Bundler` is `undefined` at runtime
+      // and the ESM-path Node16/NodeNext substitution must fall back to Node10
+      // rather than returning an undefined moduleResolution. Simulated by
+      // constructing a ts-like module whose ModuleResolutionKind has Bundler
+      // stripped, then exercising the private resolver directly.
+      describe('moduleResolution fallback when ModuleResolutionKind.Bundler is unavailable (TypeScript < 5.0)', () => {
+        /**
+         * Build a TsCompiler whose `_ts` reference simulates a TypeScript runtime
+         * predating `ModuleResolutionKind.Bundler` (TS 4.3 - 4.9). Used by the
+         * tests in this describe block to verify the ESM-path Node16/NodeNext
+         * substitution falls back to Node10 rather than returning `undefined`
+         * when Bundler is missing from the runtime enum.
+         */
+        function buildCompilerWithoutBundler(): TsCompiler {
+          const configSet = createConfigSet({ tsJestConfig: baseTsJestConfig })
+          const compiler = new TsCompiler(configSet, new Map())
+          const tsLikeWithoutBundler = {
+            ...ts,
+            ModuleResolutionKind: { ...ts.ModuleResolutionKind, Bundler: undefined },
+          } as unknown as typeof ts
+          // @ts-expect-error testing purpose: replace the ts reference to simulate a runtime where Bundler is missing
+          compiler._ts = tsLikeWithoutBundler
+
+          return compiler
+        }
+
+        test.each([ts.ModuleResolutionKind.Node16, ts.ModuleResolutionKind.NodeNext])(
+          'returns Node10 (not undefined) when the user supplies %p on the ESM path',
+          (userKind) => {
+            const compiler = buildCompilerWithoutBundler()
+            // @ts-expect-error testing purpose: invoking a private method directly
+            const resolved = compiler.resolveCompatibleModuleResolution(ts.ModuleKind.ESNext, userKind)
+            expect(resolved).toBe(ts.ModuleResolutionKind.Node10)
+          },
+        )
+
+        test('returns Node10 when the user supplies Node16/NodeNext on the CJS path (no behavior change)', () => {
+          const compiler = buildCompilerWithoutBundler()
+          // @ts-expect-error testing purpose: invoking a private method directly
+          const resolved = compiler.resolveCompatibleModuleResolution(
+            ts.ModuleKind.CommonJS,
+            ts.ModuleResolutionKind.NodeNext,
+          )
+          expect(resolved).toBe(ts.ModuleResolutionKind.Node10)
+        })
+
+        test('preserves explicitly supplied Node10/Classic (the user-supplied-Bundler branch is unreachable on TS < 5)', () => {
+          const compiler = buildCompilerWithoutBundler()
+          for (const userKind of [ts.ModuleResolutionKind.Node10, ts.ModuleResolutionKind.Classic]) {
+            // @ts-expect-error testing purpose: invoking a private method directly
+            const cjs = compiler.resolveCompatibleModuleResolution(ts.ModuleKind.CommonJS, userKind)
+            // @ts-expect-error testing purpose: invoking a private method directly
+            const esm = compiler.resolveCompatibleModuleResolution(ts.ModuleKind.ESNext, userKind)
+            expect(cjs).toBe(userKind)
+            expect(esm).toBe(userKind)
+          }
+        })
+      })
+
+      // TypeScript pairs `moduleResolution: bundler` only with the ES-module
+      // module kinds (`ES2015` / `ES2020` / `ES2022` / `ESNext`) or `Preserve`.
+      // Pairing it with `CommonJS`, `AMD`, `UMD`, `System`, or `None` raises
+      // TS5095 — verified empirically on TypeScript 5.9.3 with `tsc -p` against
+      // each `module` value. These tests pin the compatibility check that gates
+      // the Node16/NodeNext substitution and the user-supplied Bundler
+      // pass-through, so neither path emits an invalid pair when the user's
+      // `module` is non-ES.
+      describe('moduleResolution compatibility — Bundler-incompatible module kinds', () => {
+        const incompatibleKinds = [
+          ['AMD', ts.ModuleKind.AMD],
+          ['UMD', ts.ModuleKind.UMD],
+          ['System', ts.ModuleKind.System],
+          ['None', ts.ModuleKind.None],
+          ['CommonJS', ts.ModuleKind.CommonJS],
+        ] as const
+
+        const remappedToNode10 = [
+          ['Node16', ts.ModuleResolutionKind.Node16],
+          ['NodeNext', ts.ModuleResolutionKind.NodeNext],
+          ['Bundler', ts.ModuleResolutionKind.Bundler],
+        ] as const
+
+        test.each(
+          incompatibleKinds.flatMap(([moduleName, moduleKind]) =>
+            remappedToNode10.map(([resolutionName, userResolution]) => ({
+              moduleName,
+              moduleKind,
+              resolutionName,
+              userResolution,
+            })),
+          ),
+        )(
+          'falls back to Node10 when forced module=$moduleName paired with user resolution=$resolutionName',
+          ({ moduleKind, userResolution }) => {
+            const configSet = createConfigSet({ tsJestConfig: baseTsJestConfig })
+            const compiler = new TsCompiler(configSet, new Map())
+            // @ts-expect-error testing purpose: invoking a private method directly
+            const resolved = compiler.resolveCompatibleModuleResolution(moduleKind, userResolution)
+            expect(resolved).toBe(ts.ModuleResolutionKind.Node10)
+          },
+        )
+
+        test.each(incompatibleKinds)(
+          'preserves explicitly compatible user resolution (Node10 / Classic) on forced module=%s',
+          (_moduleName, moduleKind) => {
+            const configSet = createConfigSet({ tsJestConfig: baseTsJestConfig })
+            const compiler = new TsCompiler(configSet, new Map())
+            for (const userKind of [ts.ModuleResolutionKind.Node10, ts.ModuleResolutionKind.Classic]) {
+              // @ts-expect-error testing purpose: invoking a private method directly
+              const resolved = compiler.resolveCompatibleModuleResolution(moduleKind, userKind)
+              expect(resolved).toBe(userKind)
+            }
+          },
+        )
+      })
+
+      // Positive coverage for the Bundler-compatible side of the same
+      // compatibility check. ES-family modules + `Preserve` (TS 5.4+) are the
+      // only kinds TypeScript accepts alongside `moduleResolution: bundler`,
+      // so Node16/NodeNext should substitute to Bundler and explicitly-set
+      // Bundler should pass through unchanged.
+      describe('moduleResolution compatibility — Bundler-compatible module kinds', () => {
+        // `ModuleKind.Preserve` was introduced in TypeScript 5.4; on older
+        // TypeScript versions the property is `undefined` at runtime. Skip
+        // that row when the enum value is missing so the test never invokes
+        // `resolveCompatibleModuleResolution(undefined, ...)`, mirroring the
+        // production guard in `isBundlerCompatibleModuleKind`.
+        const compatibleKinds = [
+          ['ES2015', ts.ModuleKind.ES2015] as const,
+          ['ES2020', ts.ModuleKind.ES2020] as const,
+          ['ES2022', ts.ModuleKind.ES2022] as const,
+          ['ESNext', ts.ModuleKind.ESNext] as const,
+          ...(ts.ModuleKind.Preserve !== undefined ? [['Preserve', ts.ModuleKind.Preserve] as const] : []),
+        ] as const
+
+        test.each(
+          compatibleKinds.flatMap(([moduleName, moduleKind]) =>
+            [
+              ['Node16', ts.ModuleResolutionKind.Node16],
+              ['NodeNext', ts.ModuleResolutionKind.NodeNext],
+              ['Bundler', ts.ModuleResolutionKind.Bundler],
+            ].map(([resolutionName, userResolution]) => ({
+              moduleName,
+              moduleKind,
+              resolutionName,
+              userResolution,
+            })),
+          ),
+        )(
+          'resolves to Bundler when forced module=$moduleName paired with user resolution=$resolutionName',
+          ({ moduleKind, userResolution }) => {
+            const configSet = createConfigSet({ tsJestConfig: baseTsJestConfig })
+            const compiler = new TsCompiler(configSet, new Map())
+            // @ts-expect-error testing purpose: invoking a private method directly
+            const resolved = compiler.resolveCompatibleModuleResolution(moduleKind, userResolution)
+            expect(resolved).toBe(ts.ModuleResolutionKind.Bundler)
+          },
+        )
+
+        test.each(compatibleKinds)(
+          'preserves Node10 / Classic as the user-supplied value on forced module=%s',
+          (_moduleName, moduleKind) => {
+            const configSet = createConfigSet({ tsJestConfig: baseTsJestConfig })
+            const compiler = new TsCompiler(configSet, new Map())
+            for (const userKind of [ts.ModuleResolutionKind.Node10, ts.ModuleResolutionKind.Classic]) {
+              // @ts-expect-error testing purpose: invoking a private method directly
+              const resolved = compiler.resolveCompatibleModuleResolution(moduleKind, userKind)
+              expect(resolved).toBe(userKind)
+            }
+          },
+        )
+      })
+
+      // End-to-end coverage that walks the full `getCompiledOutput` path with
+      // a non-ES `module` selection. Pins that `fixupCompilerOptionsForModuleKind`
+      // produces a TypeScript-valid `module` + `moduleResolution` pair (no
+      // TS5095 in real consumer compilation) when the user has selected
+      // `module: AMD` and a modern `moduleResolution`.
+      test('full flow: module=AMD + moduleResolution=NodeNext lands on (AMD, Node10)', () => {
+        const configSet = createConfigSet({
+          tsJestConfig: {
+            ...baseTsJestConfig,
+            useESM: true,
+            tsconfig: {
+              module: 'AMD',
+              moduleResolution: 'NodeNext',
+              esModuleInterop: false,
+            },
+          },
+        })
+        const emptyFile = join(mockFolder, 'empty.ts')
+        configSet.parsedTsConfig.fileNames.push(emptyFile)
+        const compiler = new TsCompiler(configSet, new Map())
+        // @ts-expect-error testing purpose
+        compiler._languageService.getEmitOutput = jest.fn().mockReturnValueOnce({
+          outputFiles: [{ text: sourceMap }, { text: jsOutput }],
+          emitSkipped: false,
+        } as ts.EmitOutput)
+        // @ts-expect-error testing purpose
+        compiler.getDiagnostics = jest.fn().mockReturnValue([])
+
+        compiler.getCompiledOutput(fileContent, fileName, {
+          depGraphs: new Map(),
+          supportsStaticESM: true,
+          watchMode: false,
+        })
+
+        // @ts-expect-error testing purpose
+        const usedCompilerOptions = compiler._compilerOptions
+
+        expect(usedCompilerOptions.module).toBe(ts.ModuleKind.AMD)
+        expect(usedCompilerOptions.moduleResolution).toBe(ts.ModuleResolutionKind.Node10)
+      })
+
+      // `customConditions` is only valid alongside `moduleResolution: bundler`,
+      // `node16`, or `nodenext` — TypeScript raises TS5098 otherwise (verified
+      // empirically against TypeScript 5.9.3 with `tsc -p`). Before #4198 the
+      // surrounding `fixupCompilerOptionsForModuleKind` cleared
+      // `customConditions` unconditionally because the hardcoded `Node10`
+      // override always made it incompatible. After the fix, the resolved
+      // `moduleResolution` can be `Bundler` (e.g. user has `Node16`/`NodeNext`
+      // paired with an ES-family `module`), so the user's `customConditions`
+      // must flow through unchanged in that case rather than being silently
+      // dropped. These tests pin both directions.
+      describe('customConditions preservation', () => {
+        function buildCompilerWithCustomConditions(
+          moduleValue: TsConfigJson.CompilerOptions['module'],
+          moduleResolutionValue: TsConfigJson.CompilerOptions['moduleResolution'],
+          useESM: boolean,
+          supportsStaticESM: boolean,
+        ): { compiler: TsCompiler; usedCompilerOptions: ts.CompilerOptions } {
+          const configSet = createConfigSet({
+            tsJestConfig: {
+              ...baseTsJestConfig,
+              useESM,
+              tsconfig: {
+                module: moduleValue,
+                moduleResolution: moduleResolutionValue,
+                customConditions: ['my-condition'],
+              },
+            },
+          })
+          const emptyFile = join(mockFolder, 'empty.ts')
+          configSet.parsedTsConfig.fileNames.push(emptyFile)
+          const compiler = new TsCompiler(configSet, new Map())
+          // @ts-expect-error testing purpose
+          compiler._languageService.getEmitOutput = jest.fn().mockReturnValueOnce({
+            outputFiles: [{ text: sourceMap }, { text: jsOutput }],
+            emitSkipped: false,
+          } as ts.EmitOutput)
+          // @ts-expect-error testing purpose
+          compiler.getDiagnostics = jest.fn().mockReturnValue([])
+
+          compiler.getCompiledOutput(fileContent, fileName, {
+            depGraphs: new Map(),
+            supportsStaticESM,
+            watchMode: false,
+          })
+
+          // @ts-expect-error testing purpose
+          return { compiler, usedCompilerOptions: compiler._compilerOptions }
+        }
+
+        // ESM path with an ES-family forced module: the substitution lands on
+        // `Bundler`, which supports `customConditions` — preserve it.
+        test.each([
+          ['ESNext', 'NodeNext'],
+          ['ESNext', 'Node16'],
+          ['ESNext', 'Bundler'],
+        ] as const)(
+          'preserves customConditions on ESM path when module=%p + user resolution=%p resolves to Bundler',
+          (moduleValue, resolutionValue) => {
+            const { usedCompilerOptions } = buildCompilerWithCustomConditions(
+              moduleValue as TsConfigJson.CompilerOptions['module'],
+              resolutionValue as TsConfigJson.CompilerOptions['moduleResolution'],
+              true,
+              true,
+            )
+            expect(usedCompilerOptions.moduleResolution).toBe(ts.ModuleResolutionKind.Bundler)
+            expect(usedCompilerOptions.customConditions).toEqual(['my-condition'])
+          },
+        )
+
+        // ESM path with a non-ES forced module (AMD/UMD/System/None): the
+        // substitution lands on `Node10`, which does NOT support
+        // `customConditions` — clear it to avoid TS5098 in real consumer
+        // compilation.
+        test.each([
+          ['AMD', 'NodeNext'],
+          ['UMD', 'NodeNext'],
+          ['System', 'Node16'],
+          ['None', 'Bundler'],
+        ] as const)(
+          'clears customConditions on ESM path when module=%p + user resolution=%p resolves to Node10',
+          (moduleValue, resolutionValue) => {
+            const { usedCompilerOptions } = buildCompilerWithCustomConditions(
+              moduleValue as TsConfigJson.CompilerOptions['module'],
+              resolutionValue as TsConfigJson.CompilerOptions['moduleResolution'],
+              true,
+              true,
+            )
+            expect(usedCompilerOptions.moduleResolution).toBe(ts.ModuleResolutionKind.Node10)
+            expect(usedCompilerOptions.customConditions).toBeUndefined()
+          },
+        )
+
+        // CJS path: forced module is `CommonJS`, which is not in the
+        // Bundler-compatible allowlist on the supported TS range, so the
+        // resolved value is always `Node10` (or `Classic` if explicitly
+        // chosen). Either way, `customConditions` must be cleared.
+        test.each([
+          ['CommonJS', 'NodeNext'],
+          ['CommonJS', 'Bundler'],
+          ['CommonJS', 'Node10'],
+        ] as const)(
+          'clears customConditions on CJS path when module=%p + user resolution=%p',
+          (moduleValue, resolutionValue) => {
+            const { usedCompilerOptions } = buildCompilerWithCustomConditions(
+              moduleValue as TsConfigJson.CompilerOptions['module'],
+              resolutionValue as TsConfigJson.CompilerOptions['moduleResolution'],
+              false,
+              false,
+            )
+            expect(usedCompilerOptions.moduleResolution).toBe(ts.ModuleResolutionKind.Node10)
+            expect(usedCompilerOptions.customConditions).toBeUndefined()
+          },
+        )
+
+        // Direct unit test for the helper — pins the TypeScript-rule mapping
+        // independently of the call sites, so a future change to the helper
+        // (e.g. adding the TS6 CommonJS+Bundler relaxation) doesn't have to
+        // re-discover which resolution kinds support customConditions.
+        //
+        // Skip enum members that don't exist on the active TypeScript runtime
+        // (`Bundler` was introduced in TS 5.0; `Node16` / `NodeNext` in TS
+        // 4.7). Without these guards the equality check inside the helper —
+        // `resolved === R.Bundler` — would compare `undefined === undefined`
+        // on older TS and silently pass for the wrong reason.
+        test('preserveCustomConditionsIfCompatible returns input only for Bundler / Node16 / NodeNext', () => {
+          const compiler = new TsCompiler(createConfigSet({ tsJestConfig: baseTsJestConfig }), new Map())
+          const userValue = ['my-condition']
+          const supportedCases: ReadonlyArray<readonly [ts.ModuleResolutionKind, string[]]> = [
+            ...(ts.ModuleResolutionKind.Bundler !== undefined
+              ? [[ts.ModuleResolutionKind.Bundler, userValue] as const]
+              : []),
+            ...(ts.ModuleResolutionKind.Node16 !== undefined
+              ? [[ts.ModuleResolutionKind.Node16, userValue] as const]
+              : []),
+            ...(ts.ModuleResolutionKind.NodeNext !== undefined
+              ? [[ts.ModuleResolutionKind.NodeNext, userValue] as const]
+              : []),
+          ]
+          const unsupportedCases: ReadonlyArray<readonly [ts.ModuleResolutionKind, undefined]> = [
+            [ts.ModuleResolutionKind.Node10, undefined],
+            [ts.ModuleResolutionKind.Classic, undefined],
+          ]
+          const cases = [...supportedCases, ...unsupportedCases]
+          // Sanity-check the matrix did not collapse to only the
+          // unsupportedCases on a TS runtime where every supported kind is
+          // missing — that would silently weaken this test.
+          expect(supportedCases.length).toBeGreaterThan(0)
+          for (const [resolved, expected] of cases) {
+            // @ts-expect-error testing purpose: invoking a private method directly
+            const result = compiler.preserveCustomConditionsIfCompatible(resolved, userValue)
+            expect(result).toEqual(expected)
+          }
+        })
+
+        test('preserveCustomConditionsIfCompatible returns undefined when user did not set customConditions', () => {
+          const compiler = new TsCompiler(createConfigSet({ tsJestConfig: baseTsJestConfig }), new Map())
+          // Same TS-version-availability guard as the test above: only iterate
+          // over enum kinds that are defined at runtime so the helper is
+          // never invoked with an `undefined` argument on older TS.
+          const definedResolutionKinds = (
+            [
+              ts.ModuleResolutionKind.Bundler,
+              ts.ModuleResolutionKind.Node16,
+              ts.ModuleResolutionKind.NodeNext,
+              ts.ModuleResolutionKind.Node10,
+              ts.ModuleResolutionKind.Classic,
+            ] as const
+          ).filter((kind): kind is ts.ModuleResolutionKind => kind !== undefined)
+          for (const resolved of definedResolutionKinds) {
+            // @ts-expect-error testing purpose: invoking a private method directly
+            const result = compiler.preserveCustomConditionsIfCompatible(resolved, undefined)
+            expect(result).toBeUndefined()
+          }
+        })
       })
 
       test('should show a warning message and return original file content for non ts/tsx files if emitSkipped is true', () => {
