@@ -102,6 +102,149 @@ describe('TsCompiler', () => {
     })
   })
 
+  // Closes #4221: `_resolveModuleName` previously invoked
+  // `ts.resolveModuleName` with five arguments, omitting the optional
+  // 7th `resolutionMode` parameter that tells TypeScript whether the
+  // importing file is in CJS or ESM context. That parameter is what
+  // selects `import` vs `require` `exports` conditions for hybrid
+  // packages (the `.d.mts` vs `.d.cts` mismatch reported in the issue).
+  // `tsc` itself derives this via `ts.getImpliedNodeFormatForFile`;
+  // these tests pin that ts-jest mirrors that derivation, with a
+  // graceful fallback for TypeScript versions that predate the helper
+  // (TS < 4.5).
+  describe('_resolveModuleName', () => {
+    const fileName = join(mockFolder, 'thing.ts')
+
+    /**
+     * Build a TsCompiler with `_ts` replaced by a fresh shallow-copied
+     * proxy of the real TypeScript module. Mutations to the proxy stay
+     * isolated to the compiler instance under test — the underlying `ts`
+     * module is never modified, so test order cannot silently weaken
+     * later tests in this describe block (notably the TS < 4.5
+     * simulation that needs to set `getImpliedNodeFormatForFile` to
+     * `undefined`).
+     */
+    function buildCompilerWithResolverSpies(): {
+      compiler: TsCompiler
+      resolveSpy: jest.Mock
+      getImpliedSpy: jest.Mock | undefined
+    } {
+      const compiler = makeCompiler({ tsJestConfig: baseTsJestConfig })
+      const resolveSpy = jest.fn().mockReturnValue({
+        resolvedModule: undefined,
+        failedLookupLocations: [],
+      } as unknown as ts.ResolvedModuleWithFailedLookupLocations)
+      const getImpliedSpy =
+        typeof ts.getImpliedNodeFormatForFile === 'function'
+          ? (jest.fn(ts.getImpliedNodeFormatForFile) as unknown as jest.Mock)
+          : undefined
+      const tsProxy = {
+        ...ts,
+        resolveModuleName: resolveSpy,
+        getImpliedNodeFormatForFile: getImpliedSpy ?? ts.getImpliedNodeFormatForFile,
+      } as unknown as typeof ts
+      // @ts-expect-error testing purpose: replace the ts reference on this compiler instance only
+      compiler._ts = tsProxy
+
+      return { compiler, resolveSpy, getImpliedSpy }
+    }
+
+    test('passes the resolutionMode argument from getImpliedNodeFormatForFile to resolveModuleName', () => {
+      const { compiler, resolveSpy, getImpliedSpy } = buildCompilerWithResolverSpies()
+      // Skip on TypeScript < 4.5 — the helper isn't available there and
+      // the fallback is covered by a separate test below.
+      if (!getImpliedSpy) return
+      const fakeMode = ts.ModuleKind.ESNext
+      getImpliedSpy.mockReturnValue(fakeMode)
+
+      // @ts-expect-error testing purpose: invoking a private method directly
+      compiler._resolveModuleName('lodash', fileName)
+
+      expect(resolveSpy).toHaveBeenCalledTimes(1)
+      const call = resolveSpy.mock.calls[0]
+      // 7-arg signature: moduleName, containingFile, options, host,
+      // cache, redirectedReference, resolutionMode.
+      expect(call).toHaveLength(7)
+      expect(call[0]).toBe('lodash')
+      expect(call[1]).toBe(fileName)
+      expect(call[5]).toBeUndefined() // redirectedReference
+      expect(call[6]).toBe(fakeMode) // resolutionMode (the bug fix)
+    })
+
+    test('calls getImpliedNodeFormatForFile with the importing file, host, and compiler options', () => {
+      const { compiler, getImpliedSpy } = buildCompilerWithResolverSpies()
+      if (!getImpliedSpy) return
+      getImpliedSpy.mockReturnValue(ts.ModuleKind.ESNext)
+
+      // Reset before the action — TypeScript's language service calls
+      // `getImpliedNodeFormatForFile` internally many times during
+      // compiler construction; we only care about the single call our
+      // `_resolveModuleName` makes for the importing file under test.
+      getImpliedSpy.mockClear()
+
+      // @ts-expect-error testing purpose: invoking a private method directly
+      compiler._resolveModuleName('lodash', fileName)
+
+      const callsForOurFile = getImpliedSpy.mock.calls.filter((c: unknown[]) => c[0] === fileName)
+      expect(callsForOurFile).toHaveLength(1)
+      const call = callsForOurFile[0]
+      expect(call[0]).toBe(fileName)
+      // packageJsonInfoCache is intentionally undefined — ts-jest does not
+      // maintain its own cache for this lookup; TypeScript's resolver does.
+      expect(call[1]).toBeUndefined()
+      // host + options are passed through.
+      expect(call[2]).toBeDefined()
+      expect(call[3]).toBeDefined()
+    })
+
+    test('passes resolutionMode = undefined when getImpliedNodeFormatForFile is not available (TypeScript < 4.5)', () => {
+      const compiler = makeCompiler({ tsJestConfig: baseTsJestConfig })
+      const resolveSpy = jest.fn().mockReturnValue({
+        resolvedModule: undefined,
+        failedLookupLocations: [],
+      } as unknown as ts.ResolvedModuleWithFailedLookupLocations)
+      // Simulate TS < 4.5 by handing the compiler a ts-like proxy whose
+      // `getImpliedNodeFormatForFile` is `undefined`. The real `ts`
+      // module is untouched — mutations here cannot leak to other tests.
+      const tsProxyWithoutHelper = {
+        ...ts,
+        resolveModuleName: resolveSpy,
+        getImpliedNodeFormatForFile: undefined,
+      } as unknown as typeof ts
+      // @ts-expect-error testing purpose
+      compiler._ts = tsProxyWithoutHelper
+
+      // @ts-expect-error testing purpose
+      compiler._resolveModuleName('lodash', fileName)
+
+      expect(resolveSpy).toHaveBeenCalledTimes(1)
+      const call = resolveSpy.mock.calls[0]
+      // Still pass 7 arguments so the call shape is consistent across
+      // TypeScript versions; the 7th is `undefined` when the helper is
+      // missing, which TypeScript treats the same as the historical
+      // 5-arg invocation (no mode hint).
+      expect(call).toHaveLength(7)
+      expect(call[6]).toBeUndefined()
+    })
+
+    test.each([
+      ['/some/file.mts', ts.ModuleKind.ESNext],
+      ['/some/file.cts', ts.ModuleKind.CommonJS],
+    ] as const)(
+      'derives resolutionMode for explicit %s extension via getImpliedNodeFormatForFile',
+      (containingFile, expectedMode) => {
+        const { compiler, resolveSpy, getImpliedSpy } = buildCompilerWithResolverSpies()
+        if (!getImpliedSpy) return
+        getImpliedSpy.mockReturnValue(expectedMode)
+
+        // @ts-expect-error testing purpose
+        compiler._resolveModuleName('lodash', containingFile)
+
+        expect(resolveSpy.mock.calls[0][6]).toBe(expectedMode)
+      },
+    )
+  })
+
   describe('getCompiledOutput', () => {
     describe('isolatedModules true', () => {
       const fileName = join(mockFolder, 'thing.ts')
