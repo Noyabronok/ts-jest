@@ -40,7 +40,10 @@ const isNodeModule = (filePath: string) => {
   return path.normalize(filePath).split(path.sep).includes('node_modules')
 }
 
-const ESM_SYNTAX_REGEX = /(?:^|\n)[ \t]*(?:export[\s{*]|import[\s{*'"])/
+const moduleResolutionCache = ts.createModuleResolutionCache(
+  process.cwd(),
+  ts.sys.useCaseSensitiveFileNames ? (s) => s : (s) => s.toLowerCase(),
+)
 
 /**
  * @internal
@@ -234,8 +237,13 @@ export class TsJestTransformer implements SyncTransformer<TsJestTransformerOptio
     } else if (isJsFile || isTsFile) {
       if (isJsFile && isNodeModule(sourcePath)) {
         const useESM = transformOptions.supportsStaticESM && transformOptions.transformerConfig.useESM
-        // CJS files need no transformation — only transpile if ESM syntax is present
-        if (!useESM && !ESM_SYNTAX_REGEX.test(sourceText)) {
+        const impliedFormat = ts.getImpliedNodeFormatForFile(
+          sourcePath,
+          moduleResolutionCache,
+          ts.sys,
+          configs.parsedTsConfig.options,
+        )
+        if (!useESM && impliedFormat !== ts.ModuleKind.ESNext) {
           result = { code: sourceText }
         } else {
           // .mjs extension causes TypeScript to ignore `module: CommonJS`; use .js filename to prevent it

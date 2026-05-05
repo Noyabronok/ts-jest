@@ -407,16 +407,7 @@ describe('TsJestTransformer', () => {
       delete process.env.TS_JEST_HOOKS
     })
 
-    it.each([
-      {
-        filePath: 'my-project/node_modules/foo.js',
-        expectedResult: `exports.default = foo;`,
-      },
-      {
-        filePath: 'my-project/node_modules/foo.mjs',
-        expectedResult: `exports.default = foo;`,
-      },
-    ])('should transpile js file from node_modules for CJS', ({ filePath, expectedResult }) => {
+    it('should transpile .mjs file from node_modules for CJS', () => {
       const result = tr.process(
         `
           function foo() {
@@ -425,11 +416,11 @@ describe('TsJestTransformer', () => {
 
           export default foo;
         `,
-        filePath,
+        'my-project/node_modules/foo.mjs',
         baseTransformOptions,
       )
 
-      expect(omitLeadingWhitespace(result.code)).toContain(expectedResult)
+      expect(omitLeadingWhitespace(result.code)).toContain(`exports.default = foo;`)
     })
 
     it('should transpile import-only ESM node_modules file', () => {
