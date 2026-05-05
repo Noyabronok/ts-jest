@@ -21,7 +21,9 @@ exports[`TsCompiler getCompiledOutput isolatedModules true should transpile code
 exports[`TsCompiler getCompiledOutput isolatedModules true should transpile code with config {"babelConfig": false, "module": "ESNext", "supportsStaticESM": true, "useESM": true} 1`] = `
 {
   "allowSyntheticDefaultImports": undefined,
-  "customConditions": undefined,
+  "customConditions": [
+    "my-condition",
+  ],
   "esModuleInterop": true,
   "module": 99,
 }
