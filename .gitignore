@@ -33,6 +33,7 @@ build/Release
 
 # Dependency directories
 node_modules
+!src/presets/__test-fixtures__/**
 jspm_packages
 
 # Optional npm cache directory

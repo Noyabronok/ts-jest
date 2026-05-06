@@ -317,6 +317,36 @@ const jestConfig: JestConfigWithTsJest = {
 export default jestConfig
 ```
 
+#### Transforming ESM packages in `node_modules`
+
+To transform ESM-flavored files inside `node_modules`, use the `nodeModulesTransformPattern` helper to build a `transformIgnorePatterns` entry:
+
+```ts
+import { createJsWithTsPreset, nodeModulesTransformPattern } from 'ts-jest'
+
+export default {
+  ...createJsWithTsPreset(),
+  transformIgnorePatterns: [
+    nodeModulesTransformPattern({
+      scanPackageJson: true, // detect "type":"module" packages
+      scanNested: true, // also look in node_modules/<pkg>/node_modules
+      resolveSymlinks: true, // follow pnpm symlinks
+    }),
+  ],
+}
+```
+
+By default (no options), `nodeModulesTransformPattern()` only exempts `*.mjs` files from the ignore list.
+
+| Option            | Default         | Description                                             |
+| ----------------- | --------------- | ------------------------------------------------------- |
+| `mjs`             | `true`          | Exempt `*.mjs` files                                    |
+| `scanPackageJson` | `false`         | Scan `node_modules` for `"type":"module"` packages      |
+| `scanNested`      | `false`         | Also scan `node_modules/<pkg>/node_modules` (one level) |
+| `resolveSymlinks` | `false`         | Follow symlinks (needed for pnpm)                       |
+| `extraPackages`   | `[]`            | Additional package names to exempt                      |
+| `cwd`             | `process.cwd()` | Directory to scan                                       |
+
 ### `createJsWithTsLegacyPreset(options)`
 
 Create a **LEGACY** configuration to process JavaScript/TypeScript files (`.js`/`.jsx`/`.ts`/`.tsx`).

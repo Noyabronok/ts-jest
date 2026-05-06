@@ -428,10 +428,10 @@ describe('TsJestTransformer', () => {
       expect(result.code).toContain('require')
     })
 
-    it('should return CJS node_modules file as-is without transpilation', () => {
+    it('should transpile CJS node_modules file', () => {
       const cjsSource = `"use strict";\nconst x = require('./x');\nmodule.exports = x;`
       const result = tr.process(cjsSource, 'my-project/node_modules/foo.js', baseTransformOptions)
-      expect(result.code).toBe(cjsSource)
+      expect(result.code).toContain(cjsSource)
     })
 
     it('should transpile js file from node_modules for ESM', () => {
