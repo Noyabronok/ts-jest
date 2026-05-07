@@ -97,6 +97,19 @@ describe('create-jest-preset', () => {
           }),
         ).toMatchSnapshot()
       })
+
+      it('should match node_modules .mjs files but not project .mjs files when mjsNodeModules enabled', () => {
+        const preset = createJsWithTsPreset({}, { mjsNodeModules: true })
+        const patterns = Object.keys(preset.transform)
+        expect(patterns.some((p) => new RegExp(p).test('/project/node_modules/foo/index.mjs'))).toBe(true)
+        expect(patterns.some((p) => new RegExp(p).test('/project/src/foo.mjs'))).toBe(false)
+      })
+
+      it('should not include mjs node_modules pattern by default', () => {
+        const preset = createJsWithTsPreset()
+        const patterns = Object.keys(preset.transform)
+        expect(patterns.some((p) => new RegExp(p).test('/project/node_modules/foo/index.mjs'))).toBe(false)
+      })
     })
 
     describe('createJsWithTsLegacyPreset', () => {

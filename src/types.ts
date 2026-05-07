@@ -10,6 +10,7 @@ import {
   ESM_TS_JS_TRANSFORM_PATTERN,
   ESM_TS_TRANSFORM_PATTERN,
   JS_TRANSFORM_PATTERN,
+  MJS_NODE_MODULES_TRANSFORM_PATTERN,
   TS_JS_TRANSFORM_PATTERN,
   TS_TRANSFORM_PATTERN,
 } from './constants'
@@ -282,11 +283,13 @@ export type JsWithTsTransformOptions = Omit<TsJestTransformerOptions, 'useESM'>
 export type JsWithTsPreset = {
   transform: {
     [TS_JS_TRANSFORM_PATTERN]: ['ts-jest', JsWithTsTransformOptions]
+    [MJS_NODE_MODULES_TRANSFORM_PATTERN]?: ['ts-jest', JsWithTsTransformOptions]
   }
 }
 export type JsWithTsLegacyPreset = {
   transform: {
     [TS_JS_TRANSFORM_PATTERN]: ['ts-jest/legacy', JsWithTsTransformOptions]
+    [MJS_NODE_MODULES_TRANSFORM_PATTERN]?: ['ts-jest/legacy', JsWithTsTransformOptions]
   }
 }
 

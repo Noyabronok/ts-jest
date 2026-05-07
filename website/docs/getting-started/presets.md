@@ -271,6 +271,8 @@ Create a configuration to process JavaScript/TypeScript files (`.js`/`.jsx`/`.ts
   - `astTransformers`: see more at [astTransformers options page](./options/astTransformers.md)
   - `diagnostics`: see more at [diagnostics options page](./options/diagnostics.md)
   - `stringifyContentPathRegex`: see more at [stringifyContentPathRegex options page](./options/stringifyContentPathRegex.md)
+- `presetOptions` (**OPTIONAL**)
+  - `mjsNodeModules` (default: `false`): When `true`, adds a second transform entry that routes `.mjs` files inside `node_modules` to ts-jest. This allows CJS projects to consume ESM-only packages that ship `.mjs` files. See [Transforming `.mjs` node_modules](#transforming-mjs-node_modules) below.
 
 #### Returns
 
@@ -297,6 +299,7 @@ interface TsJestTransformerOptions {
 export type JsWithTsPreset = {
   transform: {
     '^.+\\.[tj]sx?$': ['ts-jest', TsJestTransformerOptions]
+    '^.+/node_modules/.+\\.mjs$'?: ['ts-jest', TsJestTransformerOptions] // present when mjsNodeModules: true
   }
 }
 ```
@@ -338,6 +341,24 @@ export default {
 | `extraPackages`   | `[]`            | Additional package names to exempt                 |
 | `cwd`             | `process.cwd()` | Directory to scan                                  |
 
+#### Transforming `.mjs` node_modules
+
+Some packages ship ESM-only `.mjs` entry points. To consume them in a CJS Jest setup, enable `mjsNodeModules` and pair it with `nodeModulesTransformPattern` to exempt those files from `transformIgnorePatterns`.
+
+Both are required: `mjsNodeModules` tells Jest to route `.mjs` node_modules files to ts-jest, and `nodeModulesTransformPattern` tells Jest not to ignore them.
+
+```ts title="jest.config.ts"
+import { createJsWithTsPreset, nodeModulesTransformPattern, type JestConfigWithTsJest } from 'ts-jest'
+
+const jestConfig: JestConfigWithTsJest = {
+  ...createJsWithTsPreset({}, { mjsNodeModules: true }),
+  transformIgnorePatterns: [nodeModulesTransformPattern({ mjs: true })],
+}
+
+export default jestConfig
+```
+
+
 ### `createJsWithTsLegacyPreset(options)`
 
 Create a **LEGACY** configuration to process JavaScript/TypeScript files (`.js`/`.jsx`/`.ts`/`.tsx`).
@@ -351,6 +372,8 @@ Create a **LEGACY** configuration to process JavaScript/TypeScript files (`.js`/
   - `astTransformers`: see more at [astTransformers options page](./options/astTransformers.md)
   - `diagnostics`: see more at [diagnostics options page](./options/diagnostics.md)
   - `stringifyContentPathRegex`: see more at [stringifyContentPathRegex options page](./options/stringifyContentPathRegex.md)
+- `presetOptions` (**OPTIONAL**)
+  - `mjsNodeModules` (default: `false`): same behavior as [`createJsWithTsPreset`](#transforming-mjs-node_modules).
 
 #### Returns
 

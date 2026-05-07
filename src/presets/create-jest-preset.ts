@@ -5,6 +5,7 @@ import {
   JS_EXT_TO_TREAT_AS_ESM,
   TS_TRANSFORM_PATTERN,
   TS_JS_TRANSFORM_PATTERN,
+  MJS_NODE_MODULES_TRANSFORM_PATTERN,
   JS_TRANSFORM_PATTERN,
   ESM_TS_TRANSFORM_PATTERN,
   ESM_TS_JS_TRANSFORM_PATTERN,
@@ -83,26 +84,36 @@ export function createDefaultLegacyPreset(tsJestTransformOptions: DefaultTransfo
   }
 }
 
-export function createJsWithTsPreset(tsJestTransformOptions: JsWithTsTransformOptions = {}): JsWithTsPreset {
+export function createJsWithTsPreset(
+  tsJestTransformOptions: JsWithTsTransformOptions = {},
+  { mjsNodeModules = false }: { mjsNodeModules?: boolean } = {},
+): JsWithTsPreset {
   logger.debug('creating Js with Ts CJS Jest preset')
 
-  return {
-    transform: {
-      [TS_JS_TRANSFORM_PATTERN]: ['ts-jest', tsJestTransformOptions],
-    },
+  const transform: JsWithTsPreset['transform'] = {
+    [TS_JS_TRANSFORM_PATTERN]: ['ts-jest', tsJestTransformOptions],
   }
+  if (mjsNodeModules) {
+    transform[MJS_NODE_MODULES_TRANSFORM_PATTERN] = ['ts-jest', tsJestTransformOptions]
+  }
+
+  return { transform }
 }
 
 export function createJsWithTsLegacyPreset(
   tsJestTransformOptions: JsWithTsTransformOptions = {},
+  { mjsNodeModules = false }: { mjsNodeModules?: boolean } = {},
 ): JsWithTsLegacyPreset {
   logger.debug('creating Js with Ts CJS Jest preset')
 
-  return {
-    transform: {
-      [TS_JS_TRANSFORM_PATTERN]: ['ts-jest/legacy', tsJestTransformOptions],
-    },
+  const transform: JsWithTsLegacyPreset['transform'] = {
+    [TS_JS_TRANSFORM_PATTERN]: ['ts-jest/legacy', tsJestTransformOptions],
   }
+  if (mjsNodeModules) {
+    transform[MJS_NODE_MODULES_TRANSFORM_PATTERN] = ['ts-jest/legacy', tsJestTransformOptions]
+  }
+
+  return { transform }
 }
 
 export function createJsWithBabelPreset(tsJestTransformOptions: JsWithBabelTransformerOptions = {}): JsWithBabelPreset {
