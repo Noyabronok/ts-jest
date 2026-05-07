@@ -337,6 +337,30 @@ export default {
 | `scanPackageJson` | `false`         | Scan `node_modules` for `"type":"module"` packages |
 | `extraPackages`   | `[]`            | Additional package names to exempt                 |
 | `cwd`             | `process.cwd()` | Directory to scan                                  |
+| `mjs`             | `false`         | Exempt `.mjs` files in `node_modules` so they are transformed instead of ignored. Use this when a dependency ships ESM-only `.mjs` entry points that need to run in a CJS Jest setup. |
+
+#### Transforming `.mjs` files from `node_modules`
+
+Some packages ship ESM-only `.mjs` entry points. Jest's default `transformIgnorePatterns` ignores all of `node_modules`, which prevents those files from being transformed and causes CJS Jest runs to fail with syntax errors.
+
+Set `mjs: true` to exempt `.mjs` files from the ignore pattern:
+
+```ts title="jest.config.ts"
+import { createJsWithTsPreset, nodeModulesTransformPattern, type JestConfigWithTsJest } from 'ts-jest'
+
+const jestConfig: JestConfigWithTsJest = {
+  ...createJsWithTsPreset(),
+  transformIgnorePatterns: [nodeModulesTransformPattern({ mjs: true })],
+}
+
+export default jestConfig
+```
+
+The options can be combined. For example, to also exempt `"type":"module"` packages alongside `.mjs` files:
+
+```ts
+transformIgnorePatterns: [nodeModulesTransformPattern({ scanPackageJson: true, mjs: true })]
+```
 
 ### `createJsWithTsLegacyPreset(options)`
 
