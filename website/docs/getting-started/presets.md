@@ -317,6 +317,27 @@ const jestConfig: JestConfigWithTsJest = {
 export default jestConfig
 ```
 
+#### Transforming ESM packages in `node_modules`
+
+To transform ESM-flavored files inside `node_modules`, use the `nodeModulesTransformPattern` helper to build a `transformIgnorePatterns` entry:
+
+```ts title="jest.config.ts"
+import { createJsWithTsPreset, nodeModulesTransformPattern } from 'ts-jest'
+
+export default {
+  ...createJsWithTsPreset(),
+  transformIgnorePatterns: [
+    nodeModulesTransformPattern({ scanPackageJson: true }),
+  ],
+}
+```
+
+| Option            | Default         | Description                                        |
+| ----------------- | --------------- | -------------------------------------------------- |
+| `scanPackageJson` | `false`         | Scan `node_modules` for `"type":"module"` packages |
+| `extraPackages`   | `[]`            | Additional package names to exempt                 |
+| `cwd`             | `process.cwd()` | Directory to scan                                  |
+
 ### `createJsWithTsLegacyPreset(options)`
 
 Create a **LEGACY** configuration to process JavaScript/TypeScript files (`.js`/`.jsx`/`.ts`/`.tsx`).
