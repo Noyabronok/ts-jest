@@ -272,7 +272,7 @@ Create a configuration to process JavaScript/TypeScript files (`.js`/`.jsx`/`.ts
   - `diagnostics`: see more at [diagnostics options page](./options/diagnostics.md)
   - `stringifyContentPathRegex`: see more at [stringifyContentPathRegex options page](./options/stringifyContentPathRegex.md)
 - `presetOptions` (**OPTIONAL**)
-  - `mjsNodeModules` (default: `false`): When `true`, adds a second transform entry that routes `.mjs` files inside `node_modules` to ts-jest. This allows CJS projects to consume ESM-only packages that ship `.mjs` files. See [Transforming `.mjs` node_modules](#transforming-mjs-node_modules) below.
+  - `mjsNodeModules` (default: `false`): When `true`, adds a second transform entry that routes `.mjs` files inside `node_modules` to ts-jest. This allows CJS projects to consume ESM-only packages that ship `.mjs` files. See [Transforming `node_modules` with `nodeModulesTransformPattern`](#transforming-node_modules-with-nodemodulestransformpattern) below.
 
 #### Returns
 
@@ -320,9 +320,11 @@ const jestConfig: JestConfigWithTsJest = {
 export default jestConfig
 ```
 
-#### Transforming ESM packages in `node_modules`
+#### Transforming `node_modules` with `nodeModulesTransformPattern`
 
-To transform ESM-flavored files inside `node_modules`, use the `nodeModulesTransformPattern` helper to build a `transformIgnorePatterns` entry:
+Use the `nodeModulesTransformPattern` helper to build a `transformIgnorePatterns` entry that allows specific packages or file types through to ts-jest.
+
+**Exempt ESM packages by `package.json` scan:**
 
 ```ts title="jest.config.ts"
 import { createJsWithTsPreset, nodeModulesTransformPattern } from 'ts-jest'
@@ -335,17 +337,7 @@ export default {
 }
 ```
 
-| Option            | Default         | Description                                        |
-| ----------------- | --------------- | -------------------------------------------------- |
-| `scanPackageJson` | `false`         | Scan `node_modules` for `"type":"module"` packages |
-| `extraPackages`   | `[]`            | Additional package names to exempt                 |
-| `cwd`             | `process.cwd()` | Directory to scan                                  |
-
-#### Transforming `.mjs` node_modules
-
-Some packages ship ESM-only `.mjs` entry points. To consume them in a CJS Jest setup, enable `mjsNodeModules` and pair it with `nodeModulesTransformPattern` to exempt those files from `transformIgnorePatterns`.
-
-Both are required: `mjsNodeModules` tells Jest to route `.mjs` node_modules files to ts-jest, and `nodeModulesTransformPattern` tells Jest not to ignore them.
+**Exempt `.mjs` files** — some packages ship ESM-only `.mjs` entry points. Use `mjs: true` together with `mjsNodeModules: true` on the preset. `mjsNodeModules` routes `.mjs` node_modules files to ts-jest; `mjs` tells Jest not to ignore them:
 
 ```ts title="jest.config.ts"
 import { createJsWithTsPreset, nodeModulesTransformPattern, type JestConfigWithTsJest } from 'ts-jest'
@@ -358,6 +350,14 @@ const jestConfig: JestConfigWithTsJest = {
 export default jestConfig
 ```
 
+Options:
+
+| Option            | Default         | Description                                        |
+| ----------------- | --------------- | -------------------------------------------------- |
+| `scanPackageJson` | `false`         | Scan `node_modules` for `"type":"module"` packages |
+| `extraPackages`   | `[]`            | Additional package names to exempt                 |
+| `mjs`             | `false`         | Exempt all `.mjs` files in `node_modules`          |
+| `cwd`             | `process.cwd()` | Directory to scan                                  |
 
 ### `createJsWithTsLegacyPreset(options)`
 
@@ -373,7 +373,7 @@ Create a **LEGACY** configuration to process JavaScript/TypeScript files (`.js`/
   - `diagnostics`: see more at [diagnostics options page](./options/diagnostics.md)
   - `stringifyContentPathRegex`: see more at [stringifyContentPathRegex options page](./options/stringifyContentPathRegex.md)
 - `presetOptions` (**OPTIONAL**)
-  - `mjsNodeModules` (default: `false`): same behavior as [`createJsWithTsPreset`](#transforming-mjs-node_modules).
+  - `mjsNodeModules` (default: `false`): same behavior as [`createJsWithTsPreset`](#transforming-node_modules-with-nodemodulestransformpattern).
 
 #### Returns
 

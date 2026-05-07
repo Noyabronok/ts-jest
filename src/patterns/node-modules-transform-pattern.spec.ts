@@ -63,6 +63,28 @@ describe('nodeModulesTransformPattern', () => {
     })
   })
 
+  describe('mjs', () => {
+    it('exempts .mjs files', () => {
+      const re = new RegExp(nodeModulesTransformPattern({ mjs: true }))
+      expect(re.test('/repo/node_modules/some-pkg/index.mjs')).toBe(false)
+      expect(re.test('/repo/node_modules/some-pkg/index.js')).toBe(true)
+    })
+
+    it('combines mjs with extraPackages', () => {
+      const re = new RegExp(nodeModulesTransformPattern({ mjs: true, extraPackages: ['esm-pkg'] }))
+      expect(re.test('/repo/node_modules/esm-pkg/index.js')).toBe(false)
+      expect(re.test('/repo/node_modules/some-pkg/index.mjs')).toBe(false)
+      expect(re.test('/repo/node_modules/cjs-pkg/index.js')).toBe(true)
+    })
+
+    it('combines mjs with scanPackageJson', () => {
+      const re = new RegExp(nodeModulesTransformPattern({ mjs: true, scanPackageJson: true, cwd: CWD }))
+      expect(re.test('/x/node_modules/esm-pkg/index.js')).toBe(false)
+      expect(re.test('/x/node_modules/some-pkg/index.mjs')).toBe(false)
+      expect(re.test('/x/node_modules/cjs-pkg/index.js')).toBe(true)
+    })
+  })
+
   describe('cache', () => {
     it('only scans once per cwd', () => {
       const readdirSpy = fs.readdirSync as jest.Mock
