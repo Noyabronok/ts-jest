@@ -1,13 +1,13 @@
 import * as fs from 'fs'
 import path from 'path'
 
-import { nodeModulesTransformPattern, __resetScanCacheForTesting } from './node-modules-transform-pattern'
+import { nodeModulesTransformPattern, resetScanCacheForTesting } from './node-modules-transform-pattern'
 
 describe('nodeModulesTransformPattern', () => {
   const FIXTURE = path.join(__dirname, '__test-fixtures__')
 
   beforeEach(() => {
-    __resetScanCacheForTesting()
+    resetScanCacheForTesting()
   })
 
   describe('mjs flag', () => {
@@ -51,45 +51,10 @@ describe('nodeModulesTransformPattern', () => {
       expect(re.test('/x/node_modules/cjs-pkg/index.js')).toBe(true)
       expect(re.test('/x/node_modules/no-type-pkg/index.js')).toBe(true)
     })
-
-    it('does not scan nested by default', () => {
-      const re = new RegExp(nodeModulesTransformPattern({ scanPackageJson: true, mjs: false, cwd: FIXTURE }))
-      expect(re.test('/x/node_modules/parent-pkg/node_modules/nested-esm/index.js')).toBe(true)
-    })
-  })
-
-  describe('scanNested', () => {
-    it('finds nested ESM packages when enabled', () => {
-      const re = new RegExp(
-        nodeModulesTransformPattern({
-          scanPackageJson: true,
-          scanNested: true,
-          mjs: false,
-          cwd: FIXTURE,
-        }),
-      )
-      expect(re.test('/x/node_modules/parent-pkg/node_modules/nested-esm/index.js')).toBe(false)
-    })
-  })
-
-  describe('resolveSymlinks', () => {
-    const PNPM_FIXTURE = path.join(__dirname, '__test-fixtures__/pnpm-layout')
-
-    it('reads through symlinks when enabled', () => {
-      const re = new RegExp(
-        nodeModulesTransformPattern({
-          scanPackageJson: true,
-          resolveSymlinks: true,
-          mjs: false,
-          cwd: PNPM_FIXTURE,
-        }),
-      )
-      expect(re.test('/x/node_modules/esm-real/index.js')).toBe(false)
-    })
   })
 
   describe('cache', () => {
-    it('only scans once per (cwd, scanNested, resolveSymlinks) tuple', () => {
+    it('only scans once per cwd', () => {
       const realFs = jest.requireActual<typeof fs>('fs')
       const spy = jest.spyOn(realFs, 'readdirSync')
       spy.mockClear()

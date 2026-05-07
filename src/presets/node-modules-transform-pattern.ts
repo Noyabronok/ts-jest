@@ -1,22 +1,15 @@
-import { readdirSync, readFileSync, realpathSync } from 'fs'
+import { readdirSync, readFileSync } from 'fs'
 import path from 'path'
 
 export interface NodeModulesTransformPatternOptions {
   mjs?: boolean
   scanPackageJson?: boolean
-  scanNested?: boolean
-  resolveSymlinks?: boolean
   extraPackages?: string[]
   cwd?: string
 }
 
 const REGEX_META = /[.*+?^${}()|[\]\\]/g
 const escapeRegex = (s: string): string => s.replace(REGEX_META, '\\$&')
-
-interface ScanOptions {
-  scanNested: boolean
-  resolveSymlinks: boolean
-}
 
 const scanCache = new Map<string, string[]>()
 
@@ -31,7 +24,7 @@ function readPkgType(pkgDir: string): string | null {
   }
 }
 
-function listPkgDirs(nodeModulesDir: string, resolveSymlinks: boolean): string[] {
+function listPkgDirs(nodeModulesDir: string): string[] {
   let entries: string[]
   try {
     entries = readdirSync(nodeModulesDir)
@@ -54,45 +47,27 @@ function listPkgDirs(nodeModulesDir: string, resolveSymlinks: boolean): string[]
       dirs.push(full)
     }
   }
-  if (resolveSymlinks) {
-    return dirs.map((d) => {
-      try {
-        return realpathSync(d)
-      } catch {
-        return d
-      }
-    })
-  }
 
   return dirs
 }
 
-function scanForEsmPackages(cwd: string, opts: ScanOptions): string[] {
-  const cacheKey = `${cwd}|${opts.scanNested}|${opts.resolveSymlinks}`
-  const cached = scanCache.get(cacheKey)
+function scanForEsmPackages(cwd: string): string[] {
+  const cached = scanCache.get(cwd)
   if (cached) return cached
   const found = new Set<string>()
   const topNm = path.join(cwd, 'node_modules')
-  const topDirs = listPkgDirs(topNm, opts.resolveSymlinks)
-  for (const dir of topDirs) {
+  for (const dir of listPkgDirs(topNm)) {
     const name = readPkgType(dir)
     if (name) found.add(name)
-    if (opts.scanNested) {
-      const nestedNm = path.join(dir, 'node_modules')
-      for (const nested of listPkgDirs(nestedNm, opts.resolveSymlinks)) {
-        const nName = readPkgType(nested)
-        if (nName) found.add(nName)
-      }
-    }
   }
   const result = [...found]
-  scanCache.set(cacheKey, result)
+  scanCache.set(cwd, result)
 
   return result
 }
 
 /** @internal */
-export function __resetScanCacheForTesting(): void {
+export function resetScanCacheForTesting(): void {
   scanCache.clear()
 }
 
@@ -106,38 +81,23 @@ export function __resetScanCacheForTesting(): void {
  * transformIgnorePatterns: [nodeModulesTransformPattern()]
  *
  * @example
- * // Auto-detect "type":"module" packages, including pnpm
+ * // Auto-detect "type":"module" packages
  * transformIgnorePatterns: [
- *   nodeModulesTransformPattern({
- *     scanPackageJson: true,
- *     scanNested: true,
- *     resolveSymlinks: true,
- *   }),
+ *   nodeModulesTransformPattern({ scanPackageJson: true }),
  * ]
  *
  * @param options.mjs - Exempt `*.mjs` files. Default `true`.
  * @param options.scanPackageJson - Scan `node_modules` and exempt packages whose
  *   `package.json` declares `"type": "module"`. Default `false`.
- * @param options.scanNested - When scanning, recurse one level into
- *   `node_modules/<pkg>/node_modules`. Default `false`.
- * @param options.resolveSymlinks - When scanning, follow symlinks (needed for
- *   pnpm's `.pnpm/` layout). Default `false`.
  * @param options.extraPackages - Additional package names to exempt. Default `[]`.
  * @param options.cwd - Directory to scan from. Default `process.cwd()`.
  * @returns A regex string suitable for `transformIgnorePatterns`.
  */
 export function nodeModulesTransformPattern(options: NodeModulesTransformPatternOptions = {}): string {
-  const {
-    mjs = true,
-    scanPackageJson = false,
-    scanNested = false,
-    resolveSymlinks = false,
-    extraPackages = [],
-    cwd = process.cwd(),
-  } = options
+  const { mjs = true, scanPackageJson = false, extraPackages = [], cwd = process.cwd() } = options
   const exempts = new Set<string>(extraPackages)
   if (scanPackageJson) {
-    for (const name of scanForEsmPackages(cwd, { scanNested, resolveSymlinks })) {
+    for (const name of scanForEsmPackages(cwd)) {
       exempts.add(name)
     }
   }

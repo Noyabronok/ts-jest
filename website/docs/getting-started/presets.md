@@ -321,7 +321,7 @@ export default jestConfig
 
 To transform ESM-flavored files inside `node_modules`, use the `nodeModulesTransformPattern` helper to build a `transformIgnorePatterns` entry:
 
-```ts
+```ts title="jest.config.ts"
 import { createJsWithTsPreset, nodeModulesTransformPattern } from 'ts-jest'
 
 export default {
@@ -329,8 +329,6 @@ export default {
   transformIgnorePatterns: [
     nodeModulesTransformPattern({
       scanPackageJson: true, // detect "type":"module" packages
-      scanNested: true, // also look in node_modules/<pkg>/node_modules
-      resolveSymlinks: true, // follow pnpm symlinks
     }),
   ],
 }
@@ -338,14 +336,12 @@ export default {
 
 By default (no options), `nodeModulesTransformPattern()` only exempts `*.mjs` files from the ignore list.
 
-| Option            | Default         | Description                                             |
-| ----------------- | --------------- | ------------------------------------------------------- |
-| `mjs`             | `true`          | Exempt `*.mjs` files                                    |
-| `scanPackageJson` | `false`         | Scan `node_modules` for `"type":"module"` packages      |
-| `scanNested`      | `false`         | Also scan `node_modules/<pkg>/node_modules` (one level) |
-| `resolveSymlinks` | `false`         | Follow symlinks (needed for pnpm)                       |
-| `extraPackages`   | `[]`            | Additional package names to exempt                      |
-| `cwd`             | `process.cwd()` | Directory to scan                                       |
+| Option            | Default         | Description                                        |
+| ----------------- | --------------- | -------------------------------------------------- |
+| `mjs`             | `true`          | Exempt `*.mjs` files                               |
+| `scanPackageJson` | `false`         | Scan `node_modules` for `"type":"module"` packages |
+| `extraPackages`   | `[]`            | Additional package names to exempt                 |
+| `cwd`             | `process.cwd()` | Directory to scan                                  |
 
 ### `createJsWithTsLegacyPreset(options)`
 
