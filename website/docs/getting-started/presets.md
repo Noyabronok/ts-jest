@@ -327,18 +327,13 @@ import { createJsWithTsPreset, nodeModulesTransformPattern } from 'ts-jest'
 export default {
   ...createJsWithTsPreset(),
   transformIgnorePatterns: [
-    nodeModulesTransformPattern({
-      scanPackageJson: true, // detect "type":"module" packages
-    }),
+    nodeModulesTransformPattern({ scanPackageJson: true }),
   ],
 }
 ```
 
-By default (no options), `nodeModulesTransformPattern()` only exempts `*.mjs` files from the ignore list.
-
 | Option            | Default         | Description                                        |
 | ----------------- | --------------- | -------------------------------------------------- |
-| `mjs`             | `true`          | Exempt `*.mjs` files                               |
 | `scanPackageJson` | `false`         | Scan `node_modules` for `"type":"module"` packages |
 | `extraPackages`   | `[]`            | Additional package names to exempt                 |
 | `cwd`             | `process.cwd()` | Directory to scan                                  |

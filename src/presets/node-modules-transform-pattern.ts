@@ -2,7 +2,6 @@ import { readdirSync, readFileSync } from 'fs'
 import path from 'path'
 
 export interface NodeModulesTransformPatternOptions {
-  mjs?: boolean
   scanPackageJson?: boolean
   extraPackages?: string[]
   cwd?: string
@@ -73,20 +72,14 @@ export function resetScanCacheForTesting(): void {
 
 /**
  * Build a `transformIgnorePatterns` entry that ignores `node_modules` except for
- * ESM-related files. Use with the `JsWithTs` presets when you need ESM packages
- * inside `node_modules` to be transformed by ts-jest.
+ * packages whose `package.json` declares `"type": "module"`. Use with the `JsWithTs`
+ * presets when you need ESM packages inside `node_modules` to be transformed by ts-jest.
  *
  * @example
- * // Basic: only exempt .mjs files
- * transformIgnorePatterns: [nodeModulesTransformPattern()]
- *
- * @example
- * // Auto-detect "type":"module" packages
  * transformIgnorePatterns: [
  *   nodeModulesTransformPattern({ scanPackageJson: true }),
  * ]
  *
- * @param options.mjs - Exempt `*.mjs` files. Default `true`.
  * @param options.scanPackageJson - Scan `node_modules` and exempt packages whose
  *   `package.json` declares `"type": "module"`. Default `false`.
  * @param options.extraPackages - Additional package names to exempt. Default `[]`.
@@ -94,7 +87,7 @@ export function resetScanCacheForTesting(): void {
  * @returns A regex string suitable for `transformIgnorePatterns`.
  */
 export function nodeModulesTransformPattern(options: NodeModulesTransformPatternOptions = {}): string {
-  const { mjs = true, scanPackageJson = false, extraPackages = [], cwd = process.cwd() } = options
+  const { scanPackageJson = false, extraPackages = [], cwd = process.cwd() } = options
   const exempts = new Set<string>(extraPackages)
   if (scanPackageJson) {
     for (const name of scanForEsmPackages(cwd)) {
@@ -104,8 +97,7 @@ export function nodeModulesTransformPattern(options: NodeModulesTransformPattern
   const escapedExempts = [...exempts].map(escapeRegex)
   const exemptPattern = escapedExempts.join('|')
   const pkgGroup = exempts.size ? `(?!(?:(?:${exemptPattern})(?:/|$)|.*/node_modules/(?:${exemptPattern})(?:/|$)))` : ''
-  const mjsGroup = mjs ? '(?!.*\\.mjs$)' : ''
-  if (!pkgGroup && !mjsGroup) return '/node_modules/'
+  if (!pkgGroup) return '/node_modules/'
 
-  return `/node_modules/${pkgGroup}${mjsGroup}`
+  return `/node_modules/${pkgGroup}`
 }

@@ -407,7 +407,16 @@ describe('TsJestTransformer', () => {
       delete process.env.TS_JEST_HOOKS
     })
 
-    it('should transpile .mjs file from node_modules for CJS', () => {
+    it.each([
+      {
+        filePath: 'my-project/node_modules/foo.js',
+        expectedResult: `exports.default = foo;`,
+      },
+      {
+        filePath: 'my-project/node_modules/foo.mjs',
+        expectedResult: `export default foo;`,
+      },
+    ])('should transpile js file from node_modules for CJS', ({ filePath, expectedResult }) => {
       const result = tr.process(
         `
           function foo() {
@@ -416,22 +425,11 @@ describe('TsJestTransformer', () => {
 
           export default foo;
         `,
-        'my-project/node_modules/foo.mjs',
+        filePath,
         baseTransformOptions,
       )
 
-      expect(omitLeadingWhitespace(result.code)).toContain(`exports.default = foo;`)
-    })
-
-    it('should transpile import-only ESM node_modules file', () => {
-      const result = tr.process(`import './side-effect.mjs';`, 'my-project/node_modules/foo.mjs', baseTransformOptions)
-      expect(result.code).toContain('require')
-    })
-
-    it('should transpile CJS node_modules file', () => {
-      const cjsSource = `"use strict";\nconst x = require('./x');\nmodule.exports = x;`
-      const result = tr.process(cjsSource, 'my-project/node_modules/foo.js', baseTransformOptions)
-      expect(result.code).toContain(cjsSource)
+      expect(omitLeadingWhitespace(result.code)).toContain(expectedResult)
     })
 
     it('should transpile js file from node_modules for ESM', () => {

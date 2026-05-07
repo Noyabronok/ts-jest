@@ -6,5 +6,5 @@ export default {
   ...createJsWithTsPreset({
     tsconfig: '<rootDir>/tsconfig.spec.json',
   }),
-  transformIgnorePatterns: [nodeModulesTransformPattern()],
+  transformIgnorePatterns: [nodeModulesTransformPattern({ scanPackageJson: true })],
 } satisfies JestConfigWithTsJest

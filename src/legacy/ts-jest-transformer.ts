@@ -231,14 +231,15 @@ export class TsJestTransformer implements SyncTransformer<TsJestTransformerOptio
       }
     } else if (isJsFile || isTsFile) {
       if (isJsFile && isNodeModule(sourcePath)) {
-        const useESM = transformOptions.supportsStaticESM && transformOptions.transformerConfig.useESM
-        const transpileFileName = !useESM ? sourcePath.replace(/\.mjs$/, '.js') : sourcePath
         const transpiledResult = ts.transpileModule(sourceText, {
           compilerOptions: {
             ...configs.parsedTsConfig.options,
-            module: useESM ? ts.ModuleKind.ESNext : ts.ModuleKind.CommonJS,
+            module:
+              transformOptions.supportsStaticESM && transformOptions.transformerConfig.useESM
+                ? ts.ModuleKind.ESNext
+                : ts.ModuleKind.CommonJS,
           },
-          fileName: transpileFileName,
+          fileName: sourcePath,
         })
         result = {
           code: updateOutput(transpiledResult.outputText, sourcePath, transpiledResult.sourceMapText),
