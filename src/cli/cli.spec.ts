@@ -330,7 +330,7 @@ describe('config', () => {
         ",
           "stdout": ""jest": {
           "transform": {
-            "^.+\\\\.(?:[tj]sx?|mjs)$": [
+            "^.+\\\\.[tj]sx?$": [
               "ts-jest",
               {
                 "tsconfig": {
@@ -495,7 +495,7 @@ describe('config', () => {
       expect(res.stdout).toMatchInlineSnapshot(`
         "module.exports = {
           transform: {
-            '^.+\\\\.(?:[tj]sx?|mjs)$': [
+            '^.+\\\\.[tj]sx?$': [
               'ts-jest',
               {},
             ],
