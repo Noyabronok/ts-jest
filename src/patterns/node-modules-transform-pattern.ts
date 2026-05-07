@@ -5,7 +5,6 @@ export interface NodeModulesTransformPatternOptions {
   scanPackageJson?: boolean
   extraPackages?: string[]
   cwd?: string
-  mjs?: boolean
 }
 
 const REGEX_META = /[.*+?^${}()|[\]\\]/g
@@ -73,48 +72,32 @@ export function resetScanCacheForTesting(): void {
 
 /**
  * Build a `transformIgnorePatterns` entry that ignores `node_modules` except for
- * specified packages and optionally `.mjs` files. Use with the `JsWithTs` presets
- * when you need ESM packages or `.mjs` files inside `node_modules` to be transformed
- * by ts-jest.
+ * packages whose `package.json` declares `"type": "module"`. Use with the `JsWithTs`
+ * presets when you need ESM packages inside `node_modules` to be transformed by ts-jest.
  *
  * @example
  * transformIgnorePatterns: [
  *   nodeModulesTransformPattern({ scanPackageJson: true }),
  * ]
  *
- * @example
- * transformIgnorePatterns: [
- *   nodeModulesTransformPattern({ mjs: true }),
- * ]
- *
  * @param options.scanPackageJson - Scan `node_modules` and exempt packages whose
  *   `package.json` declares `"type": "module"`. Default `false`.
  * @param options.extraPackages - Additional package names to exempt. Default `[]`.
  * @param options.cwd - Directory to scan from. Default `process.cwd()`.
- * @param options.mjs - Exempt `.mjs` files inside `node_modules` so they are
- *   transformed instead of ignored. Default `false`.
  * @returns A regex string suitable for `transformIgnorePatterns`.
  */
 export function nodeModulesTransformPattern(options: NodeModulesTransformPatternOptions = {}): string {
-  const { scanPackageJson = false, extraPackages = [], cwd = process.cwd(), mjs = false } = options
+  const { scanPackageJson = false, extraPackages = [], cwd = process.cwd() } = options
   const exempts = new Set<string>(extraPackages)
   if (scanPackageJson) {
     for (const name of scanForEsmPackages(cwd)) {
       exempts.add(name)
     }
   }
+  const escapedExempts = [...exempts].map(escapeRegex)
+  const exemptPattern = escapedExempts.join('|')
+  const pkgGroup = exempts.size ? `(?!(?:(?:${exemptPattern})(?:/|$)|.*/node_modules/(?:${exemptPattern})(?:/|$)))` : ''
+  if (!pkgGroup) return '/node_modules/'
 
-  const negativeParts: string[] = []
-  if (exempts.size) {
-    const exemptPattern = [...exempts].map(escapeRegex).join('|')
-    negativeParts.push(`(?:${exemptPattern})(?:/|$)`)
-    negativeParts.push(`.*/node_modules/(?:${exemptPattern})(?:/|$)`)
-  }
-  if (mjs) {
-    negativeParts.push(`.*\\.mjs$`)
-  }
-
-  if (!negativeParts.length) return '/node_modules/'
-
-  return `/node_modules/(?!(?:${negativeParts.join('|')}))`
+  return `/node_modules/${pkgGroup}`
 }
