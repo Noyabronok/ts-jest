@@ -280,13 +280,11 @@ export type DefaultEsmLegacyPreset = {
 
 export type JsWithTsTransformOptions = Omit<TsJestTransformerOptions, 'useESM'>
 export type JsWithTsPreset = {
-  transformIgnorePatterns?: string[]
   transform: {
     [TS_JS_TRANSFORM_PATTERN]: ['ts-jest', JsWithTsTransformOptions]
   }
 }
 export type JsWithTsLegacyPreset = {
-  transformIgnorePatterns?: string[]
   transform: {
     [TS_JS_TRANSFORM_PATTERN]: ['ts-jest/legacy', JsWithTsTransformOptions]
   }

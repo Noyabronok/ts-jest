@@ -97,7 +97,6 @@ describe('create-jest-preset', () => {
           }),
         ).toMatchSnapshot()
       })
-
     })
 
     describe('createJsWithTsLegacyPreset', () => {

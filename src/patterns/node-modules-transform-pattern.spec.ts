@@ -6,6 +6,7 @@ import { nodeModulesTransformPattern, resetScanCacheForTesting } from './node-mo
 
 jest.mock('fs', () => {
   const memfsFs = require('memfs').fs
+
   return {
     ...memfsFs,
     readdirSync: jest.fn((...args: Parameters<typeof memfsFs.readdirSync>) => memfsFs.readdirSync(...args)),
@@ -15,7 +16,8 @@ jest.mock('fs', () => {
 const CWD = '/fixture'
 
 const FIXTURE_FS = {
-  [`${CWD}/node_modules/esm-pkg/package.json`]: '{"name":"esm-pkg","version":"1.0.0","type":"module","main":"index.js"}',
+  [`${CWD}/node_modules/esm-pkg/package.json`]:
+    '{"name":"esm-pkg","version":"1.0.0","type":"module","main":"index.js"}',
   [`${CWD}/node_modules/esm-pkg/index.js`]: '',
   [`${CWD}/node_modules/cjs-pkg/package.json`]: '{"name":"cjs-pkg","version":"1.0.0","main":"index.js"}',
   [`${CWD}/node_modules/cjs-pkg/index.js`]: '',
