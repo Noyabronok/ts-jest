@@ -30,6 +30,7 @@ import {
   JsWithTsLegacyPreset,
   JsWithTsPreset,
   JsWithTsTransformOptions,
+  NodeModulesTransformOptions,
   TsJestPresets,
   TsJestTransformerOptions,
 } from '../types'
@@ -86,7 +87,7 @@ export function createDefaultLegacyPreset(tsJestTransformOptions: DefaultTransfo
 
 export function createJsWithTsPreset(
   tsJestTransformOptions: JsWithTsTransformOptions = {},
-  { mjsNodeModules = false }: { mjsNodeModules?: boolean } = {},
+  { mjsNodeModules = false }: NodeModulesTransformOptions = {},
 ): JsWithTsPreset {
   logger.debug('creating Js with Ts CJS Jest preset')
 
@@ -102,18 +103,14 @@ export function createJsWithTsPreset(
 
 export function createJsWithTsLegacyPreset(
   tsJestTransformOptions: JsWithTsTransformOptions = {},
-  { mjsNodeModules = false }: { mjsNodeModules?: boolean } = {},
 ): JsWithTsLegacyPreset {
   logger.debug('creating Js with Ts CJS Jest preset')
 
-  const transform: JsWithTsLegacyPreset['transform'] = {
-    [TS_JS_TRANSFORM_PATTERN]: ['ts-jest/legacy', tsJestTransformOptions],
+  return {
+    transform: {
+      [TS_JS_TRANSFORM_PATTERN]: ['ts-jest/legacy', tsJestTransformOptions],
+    },
   }
-  if (mjsNodeModules) {
-    transform[MJS_NODE_MODULES_TRANSFORM_PATTERN] = ['ts-jest/legacy', tsJestTransformOptions]
-  }
-
-  return { transform }
 }
 
 export function createJsWithBabelPreset(tsJestTransformOptions: JsWithBabelTransformerOptions = {}): JsWithBabelPreset {

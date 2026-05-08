@@ -271,7 +271,7 @@ Create a configuration to process JavaScript/TypeScript files (`.js`/`.jsx`/`.ts
   - `astTransformers`: see more at [astTransformers options page](./options/astTransformers.md)
   - `diagnostics`: see more at [diagnostics options page](./options/diagnostics.md)
   - `stringifyContentPathRegex`: see more at [stringifyContentPathRegex options page](./options/stringifyContentPathRegex.md)
-- `presetOptions` (**OPTIONAL**)
+- `nodeModulesTransformOptions` (`NodeModulesTransformOptions`, **OPTIONAL**)
   - `mjsNodeModules` (default: `false`): When `true`, adds a second transform entry that routes `.mjs` files inside `node_modules` to ts-jest. This allows CJS projects to consume ESM-only packages that ship `.mjs` files. See [Transforming `node_modules` with `nodeModulesTransformPattern`](#transforming-node_modules-with-nodemodulestransformpattern) below.
 
 #### Returns
@@ -372,8 +372,6 @@ Create a **LEGACY** configuration to process JavaScript/TypeScript files (`.js`/
   - `astTransformers`: see more at [astTransformers options page](./options/astTransformers.md)
   - `diagnostics`: see more at [diagnostics options page](./options/diagnostics.md)
   - `stringifyContentPathRegex`: see more at [stringifyContentPathRegex options page](./options/stringifyContentPathRegex.md)
-- `presetOptions` (**OPTIONAL**)
-  - `mjsNodeModules` (default: `false`): same behavior as [`createJsWithTsPreset`](#transforming-node_modules-with-nodemodulestransformpattern).
 
 #### Returns
 
@@ -395,7 +393,7 @@ interface TsJestTransformerOptions {
   stringifyContentPathRegex?: string | RegExp
 }
 
-export type JsWithTsPreset = {
+export type JsWithTsLegacyPreset = {
   transform: {
     '^.+\\.[tj]sx?$': ['ts-jest/legacy', TsJestTransformerOptions]
   }

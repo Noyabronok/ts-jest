@@ -280,6 +280,7 @@ export type DefaultEsmLegacyPreset = {
 }
 
 export type JsWithTsTransformOptions = Omit<TsJestTransformerOptions, 'useESM'>
+export type NodeModulesTransformOptions = { mjsNodeModules?: boolean }
 export type JsWithTsPreset = {
   transform: {
     [TS_JS_TRANSFORM_PATTERN]: ['ts-jest', JsWithTsTransformOptions]
