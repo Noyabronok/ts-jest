@@ -2,6 +2,10 @@ import type { NodeModulesTransformOptions } from '../types'
 
 import { findTypeModulePackages } from './find-type-module-packages'
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /**
  * Build a `transformIgnorePatterns` entry that ignores `node_modules` except for
  * packages whose `package.json` declares `"type": "module"`. Use with the `JsWithTs`
@@ -26,5 +30,7 @@ export function nodeModulesTransformPattern({
   }
   if (!allPackages.size) return '/node_modules/'
 
-  return `/node_modules/(?!(${[...allPackages].join('|')})/)`
+  const escaped = [...allPackages].map(escapeRegex).join('|')
+
+  return `/node_modules/(?!(${escaped})/)`
 }

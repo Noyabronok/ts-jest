@@ -51,6 +51,11 @@ describe('nodeModulesTransformPattern', () => {
       expect(re.test('/repo/node_modules/cjs-pkg/index.js')).toBe(true)
     })
 
+    it('escapes regex metacharacters in package names', () => {
+      const re = new RegExp(nodeModulesTransformPattern({ packageNames: ['zone.js'] }))
+      expect(re.test('/repo/node_modules/zone.js/index.js')).toBe(false)
+      expect(re.test('/repo/node_modules/zonexjs/index.js')).toBe(true)
+    })
   })
 
   describe('typeModulePackages', () => {
