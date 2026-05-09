@@ -13,13 +13,15 @@ import type { NodeModulesTransformOptions } from '../types'
  * @param options.mjsPackages - When true, captures `.mjs` files inside `node_modules`.
  * @returns A single `transformIgnorePatterns` regex string.
  */
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 export function nodeModulesTransformPattern({
   mjsPackages = false,
   packageNames,
 }: NodeModulesTransformOptions): string {
   const exclusions: string[] = []
   if (packageNames?.length) {
-    exclusions.push(`(${packageNames.join('|')})/`)
+    exclusions.push(`(${packageNames.map(escapeRegex).join('|')})/`)
   }
   if (mjsPackages) {
     exclusions.push('.*\\.mjs$')
