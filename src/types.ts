@@ -334,6 +334,12 @@ export type JsWithBabelEsmLegacyPreset = {
   }
 }
 
+export interface NodeModulesTransformOptions {
+  typeModulePackages?: boolean
+  packageNames?: string[]
+  nodeModulesPath?: string
+}
+
 declare module '@jest/types' {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Config {
