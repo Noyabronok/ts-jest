@@ -136,7 +136,7 @@ export default config
 
 #### Manual resolution
 
-If you need to specify packages manually, you can specify packages to ignore in node_modules with the helper function.
+If you need to specify packages manually, you can use the helper function.
 
 ```ts title="jest.config.ts"
 transformIgnorePatterns: [nodeModulesTransformPattern({ packageNames: ['package-x', 'package-y'] })]
