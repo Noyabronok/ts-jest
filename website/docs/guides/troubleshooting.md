@@ -67,7 +67,7 @@ SyntaxError: Cannot use import statement outside a module
 
 ### SOLUTION
 
-One of the node modules hasn't the correct syntax for Jest's execution step. It needs to be transformed first.
+One of the node modules doesn't have the correct syntax for Jest's execution step. It needs to be transformed first.
 
 The error message usually shows which module is affected:
 
@@ -79,7 +79,7 @@ The error message usually shows which module is affected:
 
 #### If the offending files are `.mjs` files
 
-Add a dedicated transform rule for `.mjs` files. ts-jest handles all `.mjs` files in `node_modules` automatically — no need to list individual packages:
+Use when individual files have a `.mjs` extension. Add a dedicated transform rule — ts-jest will transpile all `.mjs` files in `node_modules` to CommonJS without needing to list packages individually:
 
 ```ts title="jest.config.ts"
 import type { Config } from 'jest'
@@ -101,7 +101,7 @@ export default config
 
 #### If the offending package uses `"type": "module"` in its `package.json`
 
-You need to name each package explicitly in `transformIgnorePatterns`:
+Use when a package declares `"type": "module"`, causing its `.js` files to be treated as ESM. Name each affected package explicitly in `transformIgnorePatterns`:
 
 ```ts title="jest.config.ts"
 import type { Config } from 'jest'

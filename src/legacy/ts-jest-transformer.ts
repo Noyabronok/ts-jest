@@ -235,13 +235,13 @@ export class TsJestTransformer implements SyncTransformer<TsJestTransformerOptio
           compilerOptions: {
             ...configs.parsedTsConfig.options,
             module:
-              transformOptions.supportsStaticESM && transformOptions.transformerConfig.useESM
+              transformOptions.supportsStaticESM && transformOptions.transformerConfig?.useESM
                 ? ts.ModuleKind.ESNext
                 : ts.ModuleKind.CommonJS,
           },
           // .mjs fileName causes ts.transpileModule to preserve ESM syntax even with module: CommonJS
           fileName:
-            transformOptions.supportsStaticESM && transformOptions.transformerConfig.useESM
+            transformOptions.supportsStaticESM && transformOptions.transformerConfig?.useESM
               ? sourcePath
               : sourcePath.replace(/\.mjs$/, '.js'),
         })
