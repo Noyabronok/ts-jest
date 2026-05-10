@@ -414,7 +414,7 @@ describe('TsJestTransformer', () => {
       },
       {
         filePath: 'my-project/node_modules/foo.mjs',
-        expectedResult: `export default foo;`,
+        expectedResult: `exports.default = foo;`,
       },
     ])('should transpile js file from node_modules for CJS', ({ filePath, expectedResult }) => {
       const result = tr.process(
@@ -430,6 +430,20 @@ describe('TsJestTransformer', () => {
       )
 
       expect(omitLeadingWhitespace(result.code)).toContain(expectedResult)
+    })
+
+    it('should transpile .mjs file with import statements from node_modules to CJS without SyntaxError', () => {
+      const result = tr.process(
+        `
+          import { LensList } from "./lens-list.mjs";
+          export default LensList;
+        `,
+        'my-project/node_modules/rettime/build/index.mjs',
+        baseTransformOptions,
+      )
+
+      expect(omitLeadingWhitespace(result.code)).toContain(`require("./lens-list.mjs")`)
+      expect(omitLeadingWhitespace(result.code)).not.toContain('import {')
     })
 
     it('should transpile js file from node_modules for ESM', () => {
