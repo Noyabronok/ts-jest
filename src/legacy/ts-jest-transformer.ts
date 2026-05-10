@@ -239,7 +239,7 @@ export class TsJestTransformer implements SyncTransformer<TsJestTransformerOptio
                 ? ts.ModuleKind.ESNext
                 : ts.ModuleKind.CommonJS,
           },
-          // TypeScript preserves ESM syntax when fileName ends in .mjs; rename to .js to get CJS output
+          // .mjs fileName causes ts.transpileModule to preserve ESM syntax even with module: CommonJS
           fileName:
             transformOptions.supportsStaticESM && transformOptions.transformerConfig.useESM
               ? sourcePath
