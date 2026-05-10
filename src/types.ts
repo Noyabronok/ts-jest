@@ -336,6 +336,7 @@ export type JsWithBabelEsmLegacyPreset = {
 
 export interface NodeModulesTransformOptions {
   typeModulePackages?: boolean
+  mjsPackages?: boolean
   packageNames?: string[]
   nodeModulesPath?: string
 }

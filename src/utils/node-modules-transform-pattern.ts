@@ -8,17 +8,20 @@ function escapeRegex(value: string): string {
 
 /**
  * Build a `transformIgnorePatterns` entry that ignores `node_modules` except for
- * packages whose `package.json` declares `"type": "module"`. Use with the `JsWithTs`
+ * specified packages and optional file-extension exemptions. Use with the `JsWithTs`
  * presets when you need ESM packages inside `node_modules` to be transformed by ts-jest.
  *
  * @param options.typeModulePackages - Scan `node_modules` and exempt packages whose
  *   `package.json` declares `"type": "module"`. Default `false`.
+ * @param options.mjsPackages - Exempt all `.mjs` files inside `node_modules` from
+ *   being ignored, so they are transformed by ts-jest. Default `false`.
  * @param options.packageNames - Additional package names to exempt. Default `[]`.
  * @param options.nodeModulesPath - Directory to scan from. Default `process.cwd()`.
  * @returns A regex string suitable for `transformIgnorePatterns`.
  */
 export function nodeModulesTransformPattern({
   typeModulePackages = false,
+  mjsPackages = false,
   packageNames = [],
   nodeModulesPath = process.cwd(),
 }: NodeModulesTransformOptions = {}): string {
@@ -28,9 +31,17 @@ export function nodeModulesTransformPattern({
       allPackages.add(name)
     }
   }
-  if (!allPackages.size) return '/node_modules/'
 
-  const escaped = [...allPackages].map(escapeRegex).join('|')
+  const parts: string[] = []
+  if (allPackages.size) {
+    const escaped = [...allPackages].map(escapeRegex).join('|')
+    parts.push(`(${escaped})/`)
+  }
+  if (mjsPackages) {
+    parts.push(`.*\\.mjs`)
+  }
 
-  return `/node_modules/(?!(${escaped})/)`
+  if (!parts.length) return '/node_modules/'
+
+  return `/node_modules/(?!${parts.join('|')})`
 }

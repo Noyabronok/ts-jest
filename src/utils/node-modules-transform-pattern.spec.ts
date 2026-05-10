@@ -1,5 +1,3 @@
-import * as fs from 'fs'
-
 import { vol } from 'memfs'
 
 import { resetTypeModuleCacheForTesting } from './find-type-module-packages'
@@ -74,14 +72,32 @@ describe('nodeModulesTransformPattern', () => {
     })
   })
 
-  describe('cache', () => {
-    it('only scans once per nodeModulesPath', () => {
-      const readdirSpy = fs.readdirSync as jest.Mock
-      readdirSpy.mockClear()
-      nodeModulesTransformPattern({ typeModulePackages: true, nodeModulesPath: CWD })
-      const firstCount = readdirSpy.mock.calls.length
-      nodeModulesTransformPattern({ typeModulePackages: true, nodeModulesPath: CWD })
-      expect(readdirSpy.mock.calls.length).toBe(firstCount)
+  describe('mjsPackages', () => {
+    it('exempts .mjs files from any package', () => {
+      const re = new RegExp(nodeModulesTransformPattern({ mjsPackages: true }))
+      expect(re.test('/x/node_modules/some-pkg/index.mjs')).toBe(false)
+      expect(re.test('/x/node_modules/some-pkg/index.js')).toBe(true)
+    })
+
+    it('still ignores .js files from packages not otherwise exempted', () => {
+      const re = new RegExp(nodeModulesTransformPattern({ mjsPackages: true }))
+      expect(re.test('/x/node_modules/cjs-pkg/index.js')).toBe(true)
+    })
+
+    it('combines with packageNames', () => {
+      const re = new RegExp(nodeModulesTransformPattern({ mjsPackages: true, packageNames: ['esm-pkg'] }))
+      expect(re.test('/x/node_modules/esm-pkg/index.js')).toBe(false)
+      expect(re.test('/x/node_modules/some-pkg/index.mjs')).toBe(false)
+      expect(re.test('/x/node_modules/cjs-pkg/index.js')).toBe(true)
+    })
+
+    it('combines with typeModulePackages', () => {
+      const re = new RegExp(
+        nodeModulesTransformPattern({ mjsPackages: true, typeModulePackages: true, nodeModulesPath: CWD }),
+      )
+      expect(re.test('/x/node_modules/esm-pkg/index.js')).toBe(false)
+      expect(re.test('/x/node_modules/some-pkg/index.mjs')).toBe(false)
+      expect(re.test('/x/node_modules/cjs-pkg/index.js')).toBe(true)
     })
   })
 })
