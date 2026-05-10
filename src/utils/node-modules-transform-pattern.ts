@@ -38,7 +38,7 @@ export function nodeModulesTransformPattern({
     parts.push(`(${escaped})/`)
   }
   if (mjsPackages) {
-    parts.push(`.*\\.mjs`)
+    parts.push(`.*\\.mjs$`)
   }
 
   if (!parts.length) return '/node_modules/'

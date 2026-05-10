@@ -97,7 +97,7 @@ The error message usually shows which module is affected:
 
 Use when individual files have a `.mjs` extension. Pass `mjsPackages: true` — ts-jest will transpile all `.mjs` files in `node_modules` to CommonJS without needing to list packages individually.
 
-Removing mjs packages from ignore patters alone isn't enough. You must also ask the transformer to look for mjs files:
+Removing mjs packages from ignore patterns alone isn't enough. You must also ask the transformer to look for mjs files:
 
 ```ts title="jest.config.ts"
 import type { Config } from 'jest'
@@ -136,7 +136,7 @@ export default config
 
 #### Manual resolution
 
-If you need to specify packages manually, you can specify packages to ignore in node_modules with the helper function. Do not add multiple entries for node_modules to ignore patterns unless you provide a full path.
+If you need to specify packages manually, you can specify packages to ignore in node_modules with the helper function.
 
 ```ts title="jest.config.ts"
 transformIgnorePatterns: [nodeModulesTransformPattern({ packageNames: ['package-x', 'package-y'] })]

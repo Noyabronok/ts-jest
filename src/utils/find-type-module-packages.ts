@@ -32,7 +32,9 @@ function listPkgDirs(nodeModulesDir: string): string[] {
       } catch {
         continue
       }
-      for (const sub of scoped) dirs.push(path.join(full, sub))
+      for (const sub of scoped) {
+        if (!sub.startsWith('.')) dirs.push(path.join(full, sub))
+      }
     } else {
       dirs.push(full)
     }
@@ -42,7 +44,8 @@ function listPkgDirs(nodeModulesDir: string): string[] {
 }
 
 export function findTypeModulePackages(nodeModulesPath: string): string[] {
-  const cached = typeModuleCache.get(nodeModulesPath)
+  const key = path.resolve(nodeModulesPath)
+  const cached = typeModuleCache.get(key)
   if (cached) return cached
   const found = new Set<string>()
   const topNm = path.join(nodeModulesPath, 'node_modules')
@@ -53,7 +56,7 @@ export function findTypeModulePackages(nodeModulesPath: string): string[] {
     }
   }
   const result = [...found]
-  typeModuleCache.set(nodeModulesPath, result)
+  typeModuleCache.set(key, result)
 
   return result
 }
