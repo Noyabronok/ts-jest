@@ -8,8 +8,8 @@ function escapeRegex(value: string): string {
 
 /**
  * Build a `transformIgnorePatterns` entry that ignores `node_modules` except for
- * specified packages and optional file-extension exemptions. Use with the `JsWithTs`
- * presets when you need ESM packages inside `node_modules` to be transformed by ts-jest.
+ * specified packages and optional file-extension exemptions. Use when you need
+ * ESM packages inside `node_modules` to be transformed by ts-jest.
  *
  * @param options.typeModulePackages - Scan `node_modules` and exempt packages whose
  *   `package.json` declares `"type": "module"`. Default `false`.
